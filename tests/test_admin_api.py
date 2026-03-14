@@ -325,13 +325,13 @@ async def test_update_revoked_token_expiry_unrevokes(client, admin_session, samp
 
 
 # ---------------------------------------------------------------------------
-# Token deletion — real DB mutations + SSE notification
+# Token revoke & deletion — real DB mutations + SSE notification
 # ---------------------------------------------------------------------------
 
-async def test_soft_revoke_sets_flag_and_notifies_sse(client, admin_session, sample_token, mock_ha_client):
-    """Soft delete sets revoked=1 in DB and broadcasts token_expired via SSE."""
-    resp = await client.delete(
-        f"/admin/tokens/{sample_token['id']}", cookies=admin_session
+async def test_revoke_sets_flag_and_notifies_sse(client, admin_session, sample_token, mock_ha_client):
+    """Revoke sets revoked=1 in DB and broadcasts token_expired via SSE."""
+    resp = await client.post(
+        f"/admin/tokens/{sample_token['id']}/revoke", cookies=admin_session
     )
     assert resp.status_code == 200
 
@@ -343,29 +343,29 @@ async def test_soft_revoke_sets_flag_and_notifies_sse(client, admin_session, sam
     mock_ha_client["broadcast_token_expired"].assert_called_once_with(sample_token["id"])
 
 
-async def test_hard_delete_removes_from_db(client, admin_session, sample_token, mock_ha_client):
-    """Hard delete removes the token row entirely."""
+async def test_delete_removes_from_db(client, admin_session, sample_token, mock_ha_client):
+    """Delete removes the token row entirely."""
     resp = await client.delete(
-        f"/admin/tokens/{sample_token['id']}/hard", cookies=admin_session
+        f"/admin/tokens/{sample_token['id']}", cookies=admin_session
     )
     assert resp.status_code == 200
     assert await db.get_token_by_id(sample_token["id"]) is None
 
 
-async def test_hard_delete_cascades_entities(client, admin_session, sample_token, mock_ha_client):
-    """Hard delete also removes associated token_entities rows (FK CASCADE)."""
+async def test_delete_cascades_entities(client, admin_session, sample_token, mock_ha_client):
+    """Delete also removes associated token_entities rows (FK CASCADE)."""
     tid = sample_token["id"]
     # Verify entities exist before delete
     assert len(await db.get_token_entities(tid)) == 1
 
-    await client.delete(f"/admin/tokens/{tid}/hard", cookies=admin_session)
+    await client.delete(f"/admin/tokens/{tid}", cookies=admin_session)
 
     assert await db.get_token_entities(tid) == []
 
 
-async def test_hard_delete_notifies_sse(client, admin_session, sample_token, mock_ha_client):
-    """Hard delete also broadcasts token_expired so SSE clients disconnect."""
+async def test_delete_notifies_sse(client, admin_session, sample_token, mock_ha_client):
+    """Delete also broadcasts token_expired so SSE clients disconnect."""
     await client.delete(
-        f"/admin/tokens/{sample_token['id']}/hard", cookies=admin_session
+        f"/admin/tokens/{sample_token['id']}", cookies=admin_session
     )
     mock_ha_client["broadcast_token_expired"].assert_called_once_with(sample_token["id"])

@@ -190,19 +190,20 @@ async def update_token_expiry(
     return _row_to_response(row)
 
 
-@router.delete("/tokens/{token_id}")
+@router.post("/tokens/{token_id}/revoke")
 async def revoke_token(token_id: str, _: str = Depends(require_admin)) -> dict:
     row = await db.get_token_by_id(token_id)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     await db.revoke_token(token_id)
     # Notify connected SSE clients
-    await ha_client.broadcast_token_expired(token_id)
+    if not row["revoked"]:
+        await ha_client.broadcast_token_expired(token_id)
     return {"ok": True}
 
 
-@router.delete("/tokens/{token_id}/hard")
-async def hard_delete_token(token_id: str, _: str = Depends(require_admin)) -> dict:
+@router.delete("/tokens/{token_id}")
+async def delete_token(token_id: str, _: str = Depends(require_admin)) -> dict:
     row = await db.get_token_by_id(token_id)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)

@@ -171,6 +171,7 @@ async def test_expired_token_returns_410(client, mock_ha_client, test_db):
         json={"entity_id": "light.a", "service": "turn_on"},
     )
     assert resp.status_code == 410
+    assert resp.json()["detail"] == "Access unavailable"
     mock_ha_client["call_service"].assert_not_called()
 
 
@@ -186,6 +187,7 @@ async def test_revoked_token_returns_410(client, mock_ha_client, test_db):
         json={"entity_id": "light.a", "service": "turn_on"},
     )
     assert resp.status_code == 410
+    assert resp.json()["detail"] == "Access unavailable"
     mock_ha_client["call_service"].assert_not_called()
 
 
@@ -195,6 +197,7 @@ async def test_nonexistent_slug_returns_410(client, mock_ha_client, test_db):
         json={"entity_id": "light.a", "service": "turn_on"},
     )
     assert resp.status_code == 410
+    assert resp.json()["detail"] == "Access unavailable"
     mock_ha_client["call_service"].assert_not_called()
 
 

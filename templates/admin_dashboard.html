@@ -777,7 +777,7 @@ function closeConfirmModal() { closeModal('confirm-modal'); _confirmCallback = n
 
 async function confirmRevoke(id) {
   openConfirmModal('Revoke Token', 'Active guest sessions will be disconnected immediately.', async () => {
-    const r = await fetch(`${BASE}/admin/tokens/${id}`, {method: 'DELETE'});
+    const r = await fetch(`${BASE}/admin/tokens/${id}/revoke`, {method: 'POST'});
     if (r.ok) { showToast('Token revoked', 'success'); loadTokens(); }
     else showToast('Error revoking token', 'error');
   });
@@ -785,7 +785,7 @@ async function confirmRevoke(id) {
 
 async function confirmDelete(id) {
   openConfirmModal('Delete Token', 'This will permanently remove the token record.', async () => {
-    const r = await fetch(`${BASE}/admin/tokens/${id}/hard`, {method: 'DELETE'});
+    const r = await fetch(`${BASE}/admin/tokens/${id}`, {method: 'DELETE'});
     if (r.ok) { showToast('Token deleted', 'success'); loadTokens(); }
     else showToast('Error deleting token', 'error');
   });

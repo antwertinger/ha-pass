@@ -90,11 +90,11 @@ async def _validate_token(slug: str, request: Request):
     """Load and validate a token by slug. Raises HTTP 410 on any issue."""
     row = await db.get_token_by_slug(slug)
     if not row:
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Token not found")
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Access unavailable")
 
     now = int(time.time())
     if row["revoked"] or row["expires_at"] <= now:
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Token expired or revoked")
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Access unavailable")
 
     if row["ip_allowlist"]:
         client_ip = _client_ip(request)
