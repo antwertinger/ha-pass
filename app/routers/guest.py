@@ -65,7 +65,7 @@ ALLOWED_SERVICES: dict[str, set[str]] = {
 }
 
 # Keys that could bypass the entity allowlist if forwarded to HA
-FORBIDDEN_DATA_KEYS = {"entity_id", "device_id", "area_id", "floor_id"}
+FORBIDDEN_DATA_KEYS = {"entity_id", "device_id", "area_id", "floor_id", "label_id"}
 
 templates = Jinja2Templates(directory="templates")
 
@@ -276,9 +276,9 @@ async def guest_command(body: CommandRequest, request: Request, slug: str = Path
     try:
         result = await ha_client.call_service(entity_domain, svc_name, service_data)
     except httpx.HTTPStatusError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Home Assistant returned {exc.response.status_code}")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Service call failed")
     except Exception:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Home Assistant service call failed")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Service call failed")
 
     await db.log_access(
         token_id=token_id,
@@ -289,4 +289,4 @@ async def guest_command(body: CommandRequest, request: Request, slug: str = Path
         service=body.service,
     )
 
-    return {"ok": True, "result": result}
+    return {"ok": True}

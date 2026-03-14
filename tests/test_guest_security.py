@@ -9,6 +9,7 @@ Only ha_client is mocked — it's an external dependency we can't run in CI.
 """
 import time
 
+import httpx
 import pytest
 
 from app import database as db
@@ -26,6 +27,7 @@ async def test_allowed_service_forwards_correct_args_to_ha(client, sample_token,
         json={"entity_id": "light.living_room", "service": "turn_on"},
     )
     assert resp.status_code == 200
+    assert "result" not in resp.json()
 
     # Verify call_service was called with the right domain, service, and data
     mock_ha_client["call_service"].assert_called_once()
@@ -109,7 +111,7 @@ async def test_service_domain_mismatch_rejected(client, sample_token, mock_ha_cl
 # ---------------------------------------------------------------------------
 
 async def test_forbidden_data_keys_stripped_before_ha_call(client, sample_token, mock_ha_client):
-    """entity_id/device_id/area_id in the data payload are stripped before reaching HA."""
+    """entity_id/device_id/area_id/label_id in the data payload are stripped before reaching HA."""
     resp = await client.post(
         f"/g/{sample_token['slug']}/command",
         json={
@@ -120,6 +122,7 @@ async def test_forbidden_data_keys_stripped_before_ha_call(client, sample_token,
                 "entity_id": "light.MALICIOUS",
                 "device_id": "injected",
                 "area_id": "sneaky",
+                "label_id": "all_lights",
             },
         },
     )
@@ -130,6 +133,7 @@ async def test_forbidden_data_keys_stripped_before_ha_call(client, sample_token,
     assert service_data["entity_id"] == "light.living_room"  # real entity, not injected
     assert "device_id" not in service_data
     assert "area_id" not in service_data
+    assert "label_id" not in service_data
     assert service_data["brightness"] == 255  # legitimate data preserved
 
 
@@ -353,3 +357,22 @@ async def test_security_headers_on_admin_route(client, admin_session, mock_ha_cl
     script_src_section = csp.split("script-src")[1].split(";")[0]
     assert "'nonce-" in script_src_section
     assert "'unsafe-inline'" not in script_src_section
+
+
+# ---------------------------------------------------------------------------
+# Error response — no HA internals leaked to guests
+# ---------------------------------------------------------------------------
+
+async def test_ha_error_does_not_leak_status_code(client, sample_token, mock_ha_client):
+    """HA error responses don't leak internal status codes to guests."""
+    mock_response = httpx.Response(status_code=500, request=httpx.Request("POST", "http://ha"))
+    mock_ha_client["call_service"].side_effect = httpx.HTTPStatusError(
+        "Server Error", request=mock_response.request, response=mock_response
+    )
+    resp = await client.post(
+        f"/g/{sample_token['slug']}/command",
+        json={"entity_id": "light.living_room", "service": "turn_on"},
+    )
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "Service call failed"
+    assert "500" not in resp.json()["detail"]
