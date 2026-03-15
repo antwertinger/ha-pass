@@ -278,7 +278,7 @@
         <span aria-hidden="true" class="material-symbols-outlined text-xl">close</span>
       </button>
     </div>
-    <canvas id="qr-canvas" width="256" height="256" class="mx-auto mb-3 rounded-xl"></canvas>
+    <canvas id="qr-canvas" width="256" height="256" class="mx-auto mb-3"></canvas>
     <div id="qr-url" class="text-xs text-muted font-mono break-all mb-4"></div>
     <button id="qr-copy-btn" data-action="copy-url" class="w-full py-2.5 rounded-xl border border-border-light dark:border-border-dark text-sm font-display font-medium hover:bg-soot/5 dark:hover:bg-white/5 transition-colors flex items-center justify-center gap-1.5">
       <span aria-hidden="true" class="material-symbols-outlined text-sm">content_copy</span> Copy Link
@@ -920,25 +920,38 @@ function showQr(url) {
 
   const canvas = document.getElementById('qr-canvas');
   const ctx = canvas.getContext('2d');
-  const size = 256;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, size, size);
+  const cssSize = 256;
 
   if (typeof qrcode !== 'undefined') {
     const qr = qrcode(0, 'M');
     qr.addData(url);
     qr.make();
     const moduleCount = qr.getModuleCount();
-    const cellSize = size / moduleCount;
+    const margin = 4; // quiet zone per QR spec
+    const totalModules = moduleCount + margin * 2;
+    const dpr = window.devicePixelRatio || 1;
+    const cellSize = Math.floor((cssSize * dpr) / totalModules);
+    const canvasSize = cellSize * totalModules;
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+    canvas.style.width = (canvasSize / dpr) + 'px';
+    canvas.style.height = (canvasSize / dpr) + 'px';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+    const offset = margin * cellSize;
+    ctx.fillStyle = '#000000';
     for (let row = 0; row < moduleCount; row++) {
       for (let col = 0; col < moduleCount; col++) {
         if (qr.isDark(row, col)) {
-          ctx.fillStyle = '#2C2420';
-          ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+          ctx.fillRect(offset + col * cellSize, offset + row * cellSize, cellSize, cellSize);
         }
       }
     }
   } else {
+    canvas.width = cssSize;
+    canvas.height = cssSize;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cssSize, cssSize);
     ctx.fillStyle = '#999';
     ctx.font = '14px sans-serif';
     ctx.textAlign = 'center';
