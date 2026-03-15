@@ -9,6 +9,7 @@ import httpx
 import websockets
 import websockets.exceptions
 
+from app import database as db
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,6 @@ _sub_lock = asyncio.Lock()
 
 async def subscribe(token_id: str) -> asyncio.Queue:
     """Register a new SSE queue for a token. Returns the queue."""
-    from app import database as db
 
     q: asyncio.Queue = asyncio.Queue(maxsize=QUEUE_SIZE)
 
@@ -99,7 +99,6 @@ async def unsubscribe(token_id: str, q: asyncio.Queue) -> None:
 
 async def invalidate_entity_cache(token_id: str) -> None:
     """Re-populate cache if token has active SSE subscribers, else remove."""
-    from app import database as db
 
     # Check for active subscribers outside the DB call
     async with _sub_lock:

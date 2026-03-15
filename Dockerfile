@@ -37,6 +37,8 @@ COPY --from=builder /build/alembic.ini .
 COPY --from=builder /build/migrations ./migrations
 COPY --from=builder /build/templates ./templates
 COPY --from=builder /build/static ./static
+COPY --from=builder /build/run.sh .
+RUN chmod +x run.sh
 
 RUN mkdir -p /data
 
@@ -45,4 +47,4 @@ EXPOSE 5880
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=15s \
   CMD python -c "import urllib.request,os; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\",5880)}/health')"
 
-CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-5880} --workers 1"]
+CMD ["/app/run.sh"]

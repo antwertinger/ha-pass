@@ -369,3 +369,32 @@ async def test_delete_notifies_sse(client, admin_session, sample_token, mock_ha_
         f"/admin/tokens/{sample_token['id']}", cookies=admin_session
     )
     mock_ha_client["broadcast_token_expired"].assert_called_once_with(sample_token["id"])
+
+
+# ---------------------------------------------------------------------------
+# HA entities proxy — real routing, mocked HA state list
+# ---------------------------------------------------------------------------
+
+async def test_ha_entities_filters_to_allowed_domains(client, admin_session, mock_ha_client):
+    """Only entities from ALLOWED_SERVICES domains are returned."""
+    mock_ha_client["get_states"].return_value = [
+        {"entity_id": "light.kitchen", "state": "on", "attributes": {"friendly_name": "Kitchen Light"}},
+        {"entity_id": "switch.patio", "state": "off", "attributes": {}},
+        {"entity_id": "script.dangerous", "state": "off", "attributes": {"friendly_name": "Danger"}},
+        {"entity_id": "automation.nightly", "state": "on", "attributes": {}},
+    ]
+    resp = await client.get("/admin/ha/entities", cookies=admin_session)
+    assert resp.status_code == 200
+    data = resp.json()
+    entity_ids = [e["entity_id"] for e in data]
+    assert "light.kitchen" in entity_ids
+    assert "switch.patio" in entity_ids
+    assert "script.dangerous" not in entity_ids
+    assert "automation.nightly" not in entity_ids
+
+
+async def test_ha_entities_returns_502_when_ha_unreachable(client, admin_session, mock_ha_client):
+    mock_ha_client["get_states"].side_effect = Exception("Connection refused")
+    resp = await client.get("/admin/ha/entities", cookies=admin_session)
+    assert resp.status_code == 502
+    assert "unreachable" in resp.json()["detail"].lower()

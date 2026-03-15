@@ -1,0 +1,22 @@
+configuration:
+  admin_username:
+    name: Admin Username
+    description: "Only needed for direct port access. Not required when using HA sidebar."
+  admin_password:
+    name: Admin Password
+    description: "Only needed for direct port access. Not required when using HA sidebar. Min 8 characters."
+  app_name:
+    name: App Name
+    description: Display name shown to guests
+  contact_message:
+    name: Contact Message
+    description: Message shown when a guest link expires
+  brand_bg:
+    name: Background Color
+    description: "Hex color for page background (e.g., #F2F0E9)"
+  brand_primary:
+    name: Primary Color
+    description: "Hex color for accents and buttons (e.g., #D9523C)"
+  guest_url:
+    name: Guest URL
+    description: "External base URL for guest links (e.g., https://guest.myhouse.com). Leave empty for local network."

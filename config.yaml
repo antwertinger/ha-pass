@@ -1,0 +1,36 @@
+name: HAPass
+version: "0.1.0"
+slug: ha-pass
+description: Shareable guest links for controlling Home Assistant devices
+url: "https://github.com/rohithkadaveru/ha-pass"
+arch: [amd64, aarch64]
+startup: application
+boot: auto
+homeassistant_api: true
+ingress: true
+ingress_port: 5880
+panel_icon: "mdi:shield-key"
+panel_title: "HAPass"
+webui: "http://[HOST]:[PORT:5880]/admin/dashboard"
+ports:
+  "5880/tcp": 5880
+ports_description:
+  "5880/tcp": "HAPass guest links (direct access)"
+backup: cold
+options:
+  admin_username: ""
+  admin_password: ""
+  app_name: "Home Access"
+  contact_message: "Please request a new link from the person who shared this one."
+  brand_bg: "#F2F0E9"
+  brand_primary: "#D9523C"
+  guest_url: ""
+schema:
+  admin_username: "str?"
+  admin_password: "password?"
+  app_name: str
+  contact_message: str
+  brand_bg: str
+  brand_primary: str
+  guest_url: "str?"
+image: "ghcr.io/rohithkadaveru/ha-pass"

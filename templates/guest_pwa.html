@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="{{ brand_bg }}" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="{{ brand_bg_dark }}" media="(prefers-color-scheme: dark)">
-<link rel="manifest" href="/g/{{ slug }}/manifest.json" crossorigin="use-credentials">
-<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+<link rel="manifest" href="{{ base_path }}/g/{{ slug }}/manifest.json" crossorigin="use-credentials">
+<link rel="apple-touch-icon" href="{{ base_path }}/static/icons/icon-192.png">
 {% endblock %}
 
 {% block fouc_extra %}
@@ -181,9 +181,9 @@
 {% endblock %}
 
 {% block body_scripts %}
-<script src="/static/util.js"></script>
-<script src="/static/domains.js"></script>
-<script src="/static/theme.js"></script>
+<script src="{{ base_path }}/static/util.js"></script>
+<script src="{{ base_path }}/static/domains.js"></script>
+<script src="{{ base_path }}/static/theme.js"></script>
 <script nonce="{{ csp_nonce }}">
 requestAnimationFrame(updateThemeToggles);
 
@@ -936,7 +936,7 @@ function dismissInstallBanner() {
 
 // ── Service Worker ───────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  if (!('{{ base_path }}')) navigator.serviceWorker.register('/static/sw.js').catch(() => {});
 }
 
 init();

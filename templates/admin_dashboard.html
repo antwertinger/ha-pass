@@ -93,9 +93,11 @@
             <span aria-hidden="true" class="material-symbols-outlined text-[16px]">dark_mode</span>
           </button>
         </div>
+        {% if not is_ingress %}
         <button data-action="do-logout" class="px-3 py-1.5 text-xs font-display font-medium rounded-lg border border-border-light dark:border-border-dark hover:bg-soot/5 dark:hover:bg-white/5 transition-colors">
           Sign out
         </button>
+        {% endif %}
       </div>
     </div>
   </header>
@@ -289,11 +291,19 @@
 {% endblock %}
 
 {% block body_scripts %}
-<script src="/static/util.js"></script>
-<script src="/static/domains.js"></script>
-<script src="/static/theme.js"></script>
+<script src="{{ base_path }}/static/util.js"></script>
+<script src="{{ base_path }}/static/domains.js"></script>
+<script src="{{ base_path }}/static/theme.js"></script>
 <script nonce="{{ csp_nonce }}">
-const BASE = '';
+const BASE = '{{ base_path }}';
+const IS_INGRESS = {{ 'true' if is_ingress else 'false' }};
+const GUEST_URL = '{{ guest_url }}';
+
+function guestLink(slug) {
+  if (GUEST_URL) return `${GUEST_URL}/g/${slug}`;
+  if (IS_INGRESS) return `http://homeassistant.local:5880/g/${slug}`;
+  return `${location.origin}/g/${slug}`;
+}
 let allEntities = [];
 let tokens = [];
 
@@ -418,7 +428,7 @@ function renderTokens() {
 
   grid.innerHTML = sorted.map(t => {
     const status = tokenStatus(t);
-    const url = `${location.origin}/g/${t.slug}`;
+    const url = guestLink(t.slug);
     const isActive = status === 'active' || status === 'expiring';
     const lastAccess = t.last_accessed ? relativeTime(t.last_accessed) : 'Never';
 
@@ -678,7 +688,7 @@ async function submitCreate() {
     closeCreateModal();
     showToast('Token created', 'success');
     loadTokens();
-    copyUrl(`${location.origin}/g/${token.slug}`);
+    copyUrl(guestLink(token.slug));
   } else {
     const err = await r.json().catch(() => ({}));
     errEl.textContent = err.detail || 'Error creating token.';
@@ -1057,8 +1067,8 @@ document.addEventListener('input', e => {
 });
 
 // Init
-checkAuth();
+if (IS_INGRESS) { showApp(); } else { checkAuth(); }
 </script>
 <!-- QR code generator v1.4.4 | MIT | (c) Kazuhiko Arase -->
-<script src="/static/qrcode.min.js"></script>
+<script src="{{ base_path }}/static/qrcode.min.js"></script>
 {% endblock %}

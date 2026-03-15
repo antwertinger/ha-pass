@@ -4,6 +4,24 @@ from pydantic import BaseModel, Field
 
 NEVER_EXPIRES_SECONDS = 4102444800  # 2099-12-31T00:00:00Z
 
+# Services guests are permitted to call, keyed by entity domain.
+# Script/scene/automation domains are intentionally excluded —
+# they execute arbitrary automations and bypass entity scoping.
+ALLOWED_SERVICES: dict[str, set[str]] = {
+    "light":         {"turn_on", "turn_off", "toggle"},
+    "switch":        {"turn_on", "turn_off", "toggle"},
+    "input_boolean": {"turn_on", "turn_off", "toggle"},
+    "climate":       {"set_temperature", "set_hvac_mode", "turn_on", "turn_off"},
+    "lock":          {"lock", "unlock"},
+    "media_player":  {"media_play", "media_pause", "media_stop", "volume_set",
+                      "media_play_pause", "turn_on", "turn_off"},
+    "cover":         {"open_cover", "close_cover", "stop_cover"},
+    "fan":           {"turn_on", "turn_off", "toggle", "set_percentage"},
+}
+
+# Keys that could bypass the entity allowlist if forwarded to HA
+FORBIDDEN_DATA_KEYS = {"entity_id", "device_id", "area_id", "floor_id", "label_id"}
+
 
 class AdminLoginRequest(BaseModel):
     username: str

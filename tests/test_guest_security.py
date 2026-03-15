@@ -13,7 +13,7 @@ import httpx
 import pytest
 
 from app import database as db
-from app.routers.guest import ALLOWED_SERVICES, FORBIDDEN_DATA_KEYS
+from app.models import ALLOWED_SERVICES, FORBIDDEN_DATA_KEYS
 
 
 # ---------------------------------------------------------------------------
@@ -376,3 +376,47 @@ async def test_ha_error_does_not_leak_status_code(client, sample_token, mock_ha_
     assert resp.status_code == 502
     assert resp.json()["detail"] == "Service call failed"
     assert "500" not in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Guest state endpoint — real DB, mocked HA states
+# ---------------------------------------------------------------------------
+
+async def test_guest_state_returns_filtered_entities(client, sample_token, mock_ha_client):
+    """State endpoint only returns entities that belong to the token."""
+    mock_ha_client["get_states"].return_value = [
+        {"entity_id": "light.living_room", "state": "on", "attributes": {"brightness": 255}},
+        {"entity_id": "light.bedroom", "state": "off", "attributes": {}},
+        {"entity_id": "switch.garage", "state": "on", "attributes": {}},
+    ]
+    # Reset the state cache so our mock data is fetched
+    import app.routers.guest as guest_mod
+    guest_mod._states_cache = None
+
+    resp = await client.get(f"/g/{sample_token['slug']}/state")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["entities"] == ["light.living_room"]
+    assert "light.living_room" in data["states"]
+    assert data["states"]["light.living_room"]["state"] == "on"
+    assert "light.bedroom" not in data["states"]
+    assert "switch.garage" not in data["states"]
+
+
+async def test_guest_state_unavailable_for_missing_entities(client, mock_ha_client, test_db):
+    """Entities not in HA state list are returned as 'unavailable'."""
+    now = int(time.time())
+    await db.create_token(
+        label="Missing", slug="missing-state", entity_ids=["light.nonexistent"],
+        expires_at=now + 3600, ip_allowlist=None,
+    )
+    mock_ha_client["get_states"].return_value = []
+    import app.routers.guest as guest_mod
+    guest_mod._states_cache = None
+
+    resp = await client.get("/g/missing-state/state")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["states"]["light.nonexistent"]["state"] == "unavailable"
+
+

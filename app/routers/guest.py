@@ -12,15 +12,15 @@ from typing import AsyncIterator
 
 import httpx
 from fastapi import APIRouter, HTTPException, Path, Request, status
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from app import database as db
 from app import ha_client
 from app.config import settings
-from app.models import CommandRequest, NEVER_EXPIRES_SECONDS
+from app.context import base_context
+from app.models import ALLOWED_SERVICES, CommandRequest, FORBIDDEN_DATA_KEYS, NEVER_EXPIRES_SECONDS
 from app.rate_limiter import rate_limiter
-from app.theme import brand_bg_dark, brand_css
 
 router = APIRouter(prefix="/g")
 
@@ -50,23 +50,6 @@ async def _get_cached_states() -> list[dict]:
     return _states_cache
 
 
-# Services guests are permitted to call, keyed by entity domain.
-# Script/scene/automation domains are intentionally excluded —
-# they execute arbitrary automations and bypass entity scoping.
-ALLOWED_SERVICES: dict[str, set[str]] = {
-    "light":         {"turn_on", "turn_off", "toggle"},
-    "switch":        {"turn_on", "turn_off", "toggle"},
-    "input_boolean": {"turn_on", "turn_off", "toggle"},
-    "climate":       {"set_temperature", "set_hvac_mode", "turn_on", "turn_off"},
-    "lock":          {"lock", "unlock"},
-    "media_player":  {"media_play", "media_pause", "media_stop", "volume_set",
-                      "media_play_pause", "turn_on", "turn_off"},
-    "cover":         {"open_cover", "close_cover", "stop_cover"},
-    "fan":           {"turn_on", "turn_off", "toggle", "set_percentage"},
-}
-
-# Keys that could bypass the entity allowlist if forwarded to HA
-FORBIDDEN_DATA_KEYS = {"entity_id", "device_id", "area_id", "floor_id", "label_id"}
 
 templates = Jinja2Templates(directory="templates")
 
@@ -122,11 +105,9 @@ async def guest_pwa(request: Request, slug: str = Path(max_length=64)):
         expired = True
 
     if expired:
-        return templates.TemplateResponse(
-            "expired.html",
-            {"request": request, "slug": slug, "app_name": settings.app_name, "contact_message": settings.contact_message, "brand_bg": settings.brand_bg, "brand_bg_dark": brand_bg_dark, "brand_primary": settings.brand_primary, "brand_css": brand_css, "csp_nonce": request.state.csp_nonce},
-            status_code=410,
-        )
+        ctx = base_context(request)
+        ctx.update({"slug": slug, "contact_message": settings.contact_message})
+        return templates.TemplateResponse(request, "expired.html", ctx, status_code=410)
 
     await db.touch_token(row["id"])
     await db.log_access(
@@ -135,10 +116,15 @@ async def guest_pwa(request: Request, slug: str = Path(max_length=64)):
         ip_address=_client_ip(request),
         user_agent=request.headers.get("User-Agent"),
     )
-    return templates.TemplateResponse(
-        "guest_pwa.html",
-        {"request": request, "slug": slug, "label": row["label"], "expires_at": row["expires_at"], "app_name": settings.app_name, "contact_message": settings.contact_message, "never_expires": NEVER_EXPIRES_SECONDS, "brand_bg": settings.brand_bg, "brand_bg_dark": brand_bg_dark, "brand_primary": settings.brand_primary, "brand_css": brand_css, "csp_nonce": request.state.csp_nonce},
-    )
+    ctx = base_context(request)
+    ctx.update({
+        "slug": slug,
+        "label": row["label"],
+        "expires_at": row["expires_at"],
+        "contact_message": settings.contact_message,
+        "never_expires": NEVER_EXPIRES_SECONDS,
+    })
+    return templates.TemplateResponse(request, "guest_pwa.html", ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -147,28 +133,28 @@ async def guest_pwa(request: Request, slug: str = Path(max_length=64)):
 
 @router.get("/{slug}/manifest.json")
 async def guest_manifest(request: Request, slug: str = Path(max_length=64)):
+    bp = request.state.ingress_path
     manifest = {  # colors must match static/input.css
         "name": settings.app_name,
         "short_name": settings.app_name[:12],
         "description": "Temporary home controls",
-        "start_url": f"/g/{slug}",
-        "scope": f"/g/{slug}",
+        "start_url": f"{bp}/g/{slug}",
+        "scope": f"{bp}/g/{slug}",
         "display": "standalone",
         "background_color": settings.brand_bg,
         "theme_color": settings.brand_primary,
         "orientation": "portrait",
         "icons": [
-            {"src": "/static/icons/icon-192.png", "sizes": "192x192",
+            {"src": f"{bp}/static/icons/icon-192.png", "sizes": "192x192",
              "type": "image/png", "purpose": "any"},
-            {"src": "/static/icons/icon-512.png", "sizes": "512x512",
+            {"src": f"{bp}/static/icons/icon-512.png", "sizes": "512x512",
              "type": "image/png", "purpose": "any"},
-            {"src": "/static/icons/icon-maskable-192.png", "sizes": "192x192",
+            {"src": f"{bp}/static/icons/icon-maskable-192.png", "sizes": "192x192",
              "type": "image/png", "purpose": "maskable"},
-            {"src": "/static/icons/icon-maskable-512.png", "sizes": "512x512",
+            {"src": f"{bp}/static/icons/icon-maskable-512.png", "sizes": "512x512",
              "type": "image/png", "purpose": "maskable"},
         ],
     }
-    from fastapi.responses import JSONResponse
     return JSONResponse(manifest)
 
 
@@ -252,7 +238,7 @@ async def guest_command(body: CommandRequest, request: Request, slug: str = Path
 
     # L-6: Validate service format before processing
     if not re.match(r'^[a-z_]+\.[a-z_]+$', body.service) and not re.match(r'^[a-z_]+$', body.service):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid service format")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid service format")
 
     entity_ids = await db.get_token_entities(token_id)
     if body.entity_id not in entity_ids:

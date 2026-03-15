@@ -6,15 +6,18 @@ import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app import database as db
 from app import ha_client
 from app.config import settings
+from app.context import base_context
+from app.ingress import get_ingress_path
+from app.models import NEVER_EXPIRES_SECONDS
 from app.rate_limiter import rate_limiter
 from app.routers import admin, guest
-from app.theme import brand_bg_dark, brand_css
 
 logging.basicConfig(
     level=logging.INFO,
@@ -91,20 +94,28 @@ _templates = Jinja2Templates(directory="templates")
 async def security_headers(request: Request, call_next):
     nonce = secrets.token_urlsafe(16)
     request.state.csp_nonce = nonce
+    ingress_path = get_ingress_path(request)
+    request.state.ingress_path = ingress_path
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     # All routes use strict nonce-based CSP (M-17: admin inline handlers
     # migrated to event delegation).
     script_src = f"'self' 'nonce-{nonce}'"
+    if ingress_path:
+        # Ingress loads inside HA iframe — allow framing from same origin
+        frame_ancestors = "frame-ancestors 'self'"
+    else:
+        response.headers["X-Frame-Options"] = "DENY"
+        frame_ancestors = "frame-ancestors 'none'"
     csp = (
         f"default-src 'self'; "
         f"script-src {script_src}; "
         f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         f"font-src https://fonts.gstatic.com; "
         f"img-src 'self' data:; "
-        f"connect-src 'self'"
+        f"connect-src 'self'; "
+        f"{frame_ancestors}"
     )
     response.headers["Content-Security-Policy"] = csp
     # Prevent browser from caching HTML responses (avoids stale JS after deploys)
@@ -120,15 +131,19 @@ app.include_router(guest.router)
 
 
 @app.get("/")
-async def root():
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/admin/dashboard")
+async def root(request: Request):
+    return RedirectResponse(url=f"{request.state.ingress_path}/admin/dashboard")
 
 
 @app.get("/admin/dashboard", include_in_schema=False)
 async def admin_dashboard_page(request: Request):
-    from app.models import NEVER_EXPIRES_SECONDS
-    return _templates.TemplateResponse("admin_dashboard.html", {"request": request, "app_name": settings.app_name, "never_expires": NEVER_EXPIRES_SECONDS, "brand_bg": settings.brand_bg, "brand_bg_dark": brand_bg_dark, "brand_primary": settings.brand_primary, "brand_css": brand_css, "csp_nonce": request.state.csp_nonce})
+    ctx = base_context(request)
+    ctx.update({
+        "never_expires": NEVER_EXPIRES_SECONDS,
+        "is_ingress": bool(ctx["base_path"]),
+        "guest_url": settings.guest_url,
+    })
+    return _templates.TemplateResponse(request, "admin_dashboard.html", ctx)
 
 
 # M-6: Health check with WS and DB status
@@ -142,7 +157,6 @@ async def health():
         db_ok = False
     if ws_ok and db_ok:
         return {"status": "ok", "ws": "connected", "db": "accessible"}
-    from fastapi.responses import JSONResponse
     return JSONResponse(
         status_code=503,
         content={"status": "degraded", "ws": "connected" if ws_ok else "disconnected", "db": "accessible" if db_ok else "unavailable"},

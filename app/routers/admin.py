@@ -8,10 +8,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app import database as db
-from app.auth import SESSION_COOKIE, require_admin, verify_password
+from app.auth import INGRESS_SENTINEL, SESSION_COOKIE, require_admin, verify_password
 from app.config import settings
 from app import ha_client
-from app.models import AdminLoginRequest, NEVER_EXPIRES_SECONDS, TokenCreateRequest, TokenResponse, TokenUpdateEntitiesRequest, TokenUpdateExpiryRequest
+from app.models import ALLOWED_SERVICES, AdminLoginRequest, NEVER_EXPIRES_SECONDS, TokenCreateRequest, TokenUpdateEntitiesRequest, TokenUpdateExpiryRequest
 from app.rate_limiter import RateLimiter
 
 router = APIRouter(prefix="/admin")
@@ -31,6 +31,9 @@ _login_limiter = RateLimiter()
 
 @router.post("/login")
 async def login(body: AdminLoginRequest, request: Request, response: Response) -> dict:
+    if not settings.admin_password:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Login disabled — use HA sidebar")
+
     # Rate limit login attempts by IP
     client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (request.client.host if request.client else "unknown")
     allowed = await _login_limiter.check(f"login:{client_ip}", 5)
@@ -59,6 +62,8 @@ async def login(body: AdminLoginRequest, request: Request, response: Response) -
 
 @router.post("/logout")
 async def logout(response: Response, session_id: str = Depends(require_admin)) -> dict:
+    if session_id == INGRESS_SENTINEL:
+        return {"ok": True}
     await db.delete_admin_session(session_id)
     response.delete_cookie(SESSION_COOKIE)
     return {"ok": True}
@@ -110,7 +115,7 @@ async def create_token(
                 ipaddress.ip_network(cidr, strict=False)
             except ValueError:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Invalid CIDR: {cidr}",
                 )
 
@@ -223,8 +228,6 @@ async def ha_entities(_: str = Depends(require_admin)) -> list[dict]:
     except Exception:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Home Assistant unreachable")
     # Only return entities whose domain we actually support
-    from app.routers.guest import ALLOWED_SERVICES
-
     return [
         {
             "entity_id": s["entity_id"],
