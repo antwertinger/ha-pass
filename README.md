@@ -37,7 +37,7 @@ installs, just a link.
 1. Add this repository in **Settings → Add-ons → Add-on Store → ⋮ → Repositories**:
 
    ```
-   https://github.com/rohithkadaveru/ha-pass
+   https://github.com/antwertinger/ha-pass
    ```
 
 2. Find **HAPass** in the store and click **Install**.
