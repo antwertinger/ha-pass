@@ -504,6 +504,11 @@ function buildLockControls(eid, state) {
       : 'border-ink/30 text-ink bg-ink/5'}">
     <span aria-hidden="true" class="material-symbols-outlined text-lg">${locked ? 'lock' : 'lock_open'}</span>
     ${locked ? 'Tap to Unlock' : 'Tap to Lock'}
+  </button>
+  <button data-action="confirm-open" data-eid="${esc(eid)}"
+    class="mt-2 w-full py-3 rounded-xl border-2 border-amber-500/30 text-amber-600 bg-amber-500/5 font-display font-semibold text-sm flex items-center justify-center gap-2 transition-colors active:scale-[0.98]">
+    <span aria-hidden="true" class="material-symbols-outlined text-lg">door_open</span>
+    Tap to Open
   </button>`;
 }
 
@@ -829,6 +834,18 @@ function confirmLock(eid, currentlyLocked) {
   if (dialog) trapFocus(dialog);
 }
 
+function confirmOpen(eid) {
+  document.getElementById('sheet-title').textContent = 'Open door?';
+  document.getElementById('sheet-body').textContent = 'This will open the door.';
+  sheetCallback = () => { sendCmd(eid, 'lock', 'open'); closeSheet(); };
+  const backdrop = document.getElementById('sheet-backdrop');
+  backdrop.classList.remove('hidden');
+  backdrop.classList.add('flex');
+  document.getElementById('sheet-ok').onclick = sheetCallback;
+  const dialog = backdrop.querySelector('[role="dialog"]');
+  if (dialog) trapFocus(dialog);
+}
+
 function closeSheet() {
   const backdrop = document.getElementById('sheet-backdrop');
   const dialog = backdrop.querySelector('[role="dialog"]');
@@ -860,6 +877,9 @@ document.addEventListener('click', e => {
       break;
     case 'confirm-lock':
       confirmLock(eid, el.dataset.locked === 'true');
+      break;
+    case 'confirm-open':
+      confirmOpen(eid);
       break;
     case 'media-cmd':
       sendMediaCmd(eid, el.dataset.service);
