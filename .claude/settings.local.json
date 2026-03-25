@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tailwindcss:*)",
+      "Bash(npm install:*)",
+      "Bash(node_modules/tailwindcss/lib/cli.js --version)",
+      "Bash(node node_modules/tailwindcss/bin/tailwind.js --version)",
+      "Bash(node_modules/.bin/tailwindcss -i ./static/input.css -o ./static/dist.css --minify 2>&1)"
+    ]
+  }
+}

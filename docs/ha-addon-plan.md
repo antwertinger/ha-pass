@@ -131,7 +131,7 @@ Already scaffolded in worktree `agent-a05de743`. Files at repo root:
 
 ### Step 6: CI/CD updates
 
-- Existing workflow already builds multi-arch and pushes to `ghcr.io/rohithkadaveru/ha-pass`
+- Existing workflow already builds multi-arch and pushes to `ghcr.io/antwertinger/ha-pass`
 - `config.yaml` `image:` field references this image
 - Version strategy: `config.yaml` `version:` must match the image tag. Update on release.
 

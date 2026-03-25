@@ -1,6 +1,6 @@
 services:
   ha-pass:
-    image: ghcr.io/rohithkadaveru/ha-pass:latest
+    image: ghcr.io/antwertinger/ha-pass:latest
     restart: unless-stopped
     ports:
       - 5880:5880

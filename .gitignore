@@ -28,3 +28,4 @@ htmlcov/
 # macOS resource forks and metadata
 ._*
 .DS_Store
+.idea
